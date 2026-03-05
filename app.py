@@ -10,6 +10,7 @@ from io import BytesIO
 import datetime
 import tempfile
 import os
+import time
 
 # Try to load FPDF globally
 try:
@@ -30,7 +31,7 @@ st.set_page_config(
 
 IMG_SIZE = 260
 CLASSES = ['Glioma Tumor', 'Meningioma Tumor', 'No Tumor', 'Pituitary Tumor']
-MODEL_ACCURACY = "98.5%"
+MODEL_ACCURACY = "87.12%"
 
 # ---------------------------------------------------
 # THEME STATE MANAGEMENT
@@ -123,7 +124,7 @@ header[data-testid="stHeader"] *, .stAppHeader * {{
     background: {colors['hero_grad']};
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
-    margin-top: -10px;
+    margin-top: 80px; /* Increased from -10px to add space above the heading */
     margin-bottom: 5px;
     letter-spacing: -1px;
 }}
@@ -240,6 +241,79 @@ div[data-testid="stForm"] button:hover {{
         flex-direction: column;
     }}
 }}
+
+/* =========================================
+   CUSTOM CSS LOADER
+   ========================================= */
+.loader-container {{
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: 50px;
+    margin-bottom: 50px;
+}}
+.loader {{
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  align-items: center;
+  height: 60px;
+}}
+.loader-square {{
+  width: 22px;
+  height: 22px;
+  background-color: rgb(0, 247, 255);
+  border-radius: 4px;
+  box-shadow: 0 0 12px rgba(4, 136, 252, 0.8);
+  animation: scaleBounce 1.2s infinite ease-in-out;
+  position: relative;
+}}
+.loader-square::after {{
+  content: "";
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 247, 255, 0.5);
+  border-radius: 50%;
+  opacity: 0;
+  transform: scale(1);
+  animation: splash 1.2s infinite ease-in-out;
+}}
+.loader-square:nth-child(1) {{
+  animation-delay: -0.4s;
+}}
+.loader-square:nth-child(2) {{
+  animation-delay: -0.2s;
+}}
+.loader-square:nth-child(3) {{
+  animation-delay: 0s;
+}}
+@keyframes scaleBounce {{
+  0%,
+  80%,
+  100% {{
+    transform: scale(0.5);
+    opacity: 0.6;
+  }}
+  40% {{
+    transform: scale(1.2);
+    opacity: 1;
+  }}
+}}
+@keyframes splash {{
+  0% {{
+    opacity: 0.6;
+    transform: scale(1);
+  }}
+  50% {{
+    opacity: 0;
+    transform: scale(2);
+  }}
+  100% {{
+    opacity: 0;
+    transform: scale(2.5);
+  }}
+}}
 </style>
 """, unsafe_allow_html=True)
 
@@ -288,7 +362,6 @@ def generate_pdf_report(patient_name, date_str, predicted_label, confidence, pro
     # Add Metrics
     pdf.set_font("Arial", '', 12)
     pdf.cell(200, 8, txt=f"Confidence Score: {confidence:.2f}%", ln=True, align='C')
-    pdf.cell(200, 8, txt=f"Model Accuracy: {MODEL_ACCURACY}", ln=True, align='C')
     pdf.ln(10)
     
     # Add Probability Distribution
@@ -455,9 +528,22 @@ if not uploaded_file:
         """, unsafe_allow_html=True)
 
 else:
-    # --- ANALYSIS STATE (RESULTS) ---
-    col1, col2 = st.columns([1, 1.5], gap="large")
+    # --- ANIMATED LOADER ---
+    # Temporarily display the loader while the image is being processed
+    loader_placeholder = st.empty()
+    loader_placeholder.markdown("""
+        <div class="loader-container">
+            <div class="loader">
+                <div class="loader-square"></div>
+                <div class="loader-square"></div>
+                <div class="loader-square"></div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    time.sleep(1.5) # Slight delay to let the animation show smoothly
 
+    # --- ANALYSIS STATE (RESULTS) ---
     image = Image.open(uploaded_file).convert("RGB")
     img_array = np.array(image)
     img_b64 = get_image_base64(image)
@@ -476,6 +562,11 @@ else:
     predicted_index = np.argmax(prediction[0])
     predicted_label = CLASSES[predicted_index]
     confidence = float(np.max(prediction[0])) * 100
+
+    # Hide the loader once inference completes
+    loader_placeholder.empty()
+
+    col1, col2 = st.columns([1, 1.5], gap="large")
 
     # LEFT PANEL (IMAGE)
     with col1:
@@ -533,10 +624,6 @@ else:
 <div style="background: {colors['stat_bg']}; border-radius: 12px; padding: 20px; text-align: center; border: 1px solid {colors['stat_border']}; flex: 1;">
 <div style="font-size: 28px; font-weight: 700; color: {colors['text']}; margin-bottom: 5px;">{confidence:.2f}%</div>
 <div style="font-size: 12px; color: {colors['sub_text']}; text-transform: uppercase; letter-spacing: 1px; font-weight: 500;">Confidence Score</div>
-</div>
-<div style="background: {colors['stat_bg']}; border-radius: 12px; padding: 20px; text-align: center; border: 1px solid {colors['stat_border']}; flex: 1;">
-<div style="font-size: 28px; font-weight: 700; color: {colors['text']}; margin-bottom: 5px;">{MODEL_ACCURACY}</div>
-<div style="font-size: 12px; color: {colors['sub_text']}; text-transform: uppercase; letter-spacing: 1px; font-weight: 500;">Model Accuracy</div>
 </div>
 </div>
 
